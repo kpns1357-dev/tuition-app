@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper: check if the requesting user is an admin
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    // Helper: check if the requesting user is a student
+    function isStudent() {
+      return request.auth != null && request.auth.token.role == 'student';
+    }
+
+    // Source material uploaded by admin (per class, per date)
+    // Path: sources/{classId}/{date}/{filename}
+    match /sources/{classId}/{date}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Student homework submissions
+    // Path: submissions/{studentId}/{date}/{subject}/{filename}
+    match /submissions/{studentId}/{date}/{subject}/{fileName} {
+      // Students can upload to their own folder
+      allow write: if isStudent() && request.auth.uid == studentId;
+      // Students can read their own; admins can read all
+      allow read: if isAdmin() || (isStudent() && request.auth.uid == studentId);
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
