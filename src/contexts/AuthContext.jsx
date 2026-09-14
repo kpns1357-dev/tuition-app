@@ -78,6 +78,7 @@ export function AuthProvider({ children }) {
   };
 
   const demoLogin = (roleType) => {
+    setLoading(false);
     if (roleType === 'admin') {
       const demoAdmin = { uid: 'demo-admin-sir', email: 'sir@tuition.edu' };
       const demoProfile = { displayName: 'Sir (Tuition Admin)', email: 'sir@tuition.edu', role: 'admin' };

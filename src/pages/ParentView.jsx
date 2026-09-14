@@ -58,11 +58,11 @@ export default function ParentView() {
         
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{student.name}</h1>
-            <p className="text-slate-600">Class: {student.class}</p>
+            <h1 className="text-2xl font-bold text-slate-900">{student?.name || 'Student'}</h1>
+            <p className="text-slate-600">Class: {student?.class || '6th'}</p>
           </div>
           <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold">
-            {student.name.charAt(0)}
+            {(student?.name || 'S').charAt(0)}
           </div>
         </div>
 
@@ -72,9 +72,12 @@ export default function ParentView() {
               <span className="mr-2">🔔</span> Notifications
             </h3>
             <ul className="space-y-2">
-              {notifications.map((note, i) => (
-                <li key={i} className="text-amber-700 text-sm">• {note}</li>
-              ))}
+              {notifications.map((note, i) => {
+                const text = typeof note === 'object' ? (note.message || note.text || JSON.stringify(note)) : note;
+                return (
+                  <li key={i} className="text-amber-800 text-sm">• {text}</li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -82,9 +85,15 @@ export default function ParentView() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-semibold text-slate-800 mb-4">Today's Homework</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {['maths', 'science', 'sst'].map(subject => {
-              const status = todayHomework[subject] || 'not_required';
-              
+            {['maths', 'science', 'sst'].map(subj => {
+              let status = 'not_required';
+              if (Array.isArray(todayHomework)) {
+                const match = todayHomework.find(h => h.subject?.toLowerCase() === subj.toLowerCase());
+                if (match) status = match.status;
+              } else if (todayHomework && typeof todayHomework === 'object') {
+                status = todayHomework[subj] || 'not_required';
+              }
+
               const statusConfig = {
                 completed: { text: 'Completed', color: 'bg-green-100 text-green-800 border-green-200' },
                 pending: { text: 'In Progress', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -92,11 +101,11 @@ export default function ParentView() {
                 not_required: { text: 'No Homework', color: 'bg-slate-100 text-slate-600 border-slate-200' }
               };
 
-              const conf = statusConfig[status];
+              const conf = statusConfig[status] || statusConfig.not_required;
 
               return (
-                <div key={subject} className="p-4 rounded-lg border bg-slate-50 flex flex-col items-center text-center">
-                  <span className="capitalize font-medium text-slate-700 mb-2">{subject}</span>
+                <div key={subj} className="p-4 rounded-lg border bg-slate-50 flex flex-col items-center text-center">
+                  <span className="capitalize font-bold text-slate-800 mb-2">{subj}</span>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${conf.color}`}>
                     {conf.text}
                   </span>

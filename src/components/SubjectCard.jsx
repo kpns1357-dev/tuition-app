@@ -25,7 +25,13 @@ const subjectConfig = {
 };
 
 export default function SubjectCard({ subject, status, linkTo }) {
-  const config = subjectConfig[subject] || {};
+  const subjectKey = typeof subject === 'object' ? (subject?.id || 'maths') : subject;
+  const config = subjectConfig[subjectKey] || {
+    label: typeof subject === 'object' ? (subject?.name || subjectKey) : subjectKey,
+    icon: '📚',
+    color: 'from-blue-500 to-blue-600',
+    description: 'Homework task',
+  };
 
   const getStatusDisplay = () => {
     if (!status) return null;
