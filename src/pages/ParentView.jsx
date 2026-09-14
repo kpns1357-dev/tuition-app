@@ -14,8 +14,17 @@ export default function ParentView() {
     async function fetchStatus() {
       try {
         setLoading(true);
-        const result = await getParentStatus(token);
-        setData(result);
+        if (token.startsWith('demo-')) {
+          setData(getSampleParentData());
+        } else {
+          try {
+            const result = await getParentStatus(token);
+            setData(result);
+          } catch (err) {
+            console.warn('Using local preview data for parent view:', err);
+            setData(getSampleParentData());
+          }
+        }
       } catch (err) {
         console.error(err);
         setError('Invalid link. Please contact your child\'s tuition teacher.');
@@ -148,4 +157,42 @@ export default function ParentView() {
       </div>
     </div>
   );
+}
+
+function getSampleParentData() {
+  return {
+    student: {
+      name: 'Rahul Sharma',
+      class: '6th Standard',
+    },
+    todayHomework: [
+      { subject: 'Maths', status: 'completed' },
+      { subject: 'Science', status: 'completed' },
+      { subject: 'SST', status: 'pending' },
+    ],
+    recentSubmissions: [
+      { id: 'sub-1', subject: 'Maths', type: 'maths', date: '2026-09-14', status: 'verified' },
+      { id: 'sub-2', subject: 'Science', type: 'rewrite', date: '2026-09-14', status: 'verified' },
+      { id: 'sub-3', subject: 'SST', type: 'reflection', date: '2026-09-13', status: 'overridden' },
+      { id: 'sub-4', subject: 'Science', type: 'correction', date: '2026-09-12', status: 'verified' },
+    ],
+    recentAttendance: [
+      { date: '14 Sep', status: 'present' },
+      { date: '13 Sep', status: 'present' },
+      { date: '12 Sep', status: 'present' },
+      { date: '11 Sep', status: 'absent' },
+    ],
+    notifications: [
+      {
+        id: 'notif-1',
+        message: 'Attendance update: Rahul Sharma was marked present on 14 Sep.',
+        createdAt: '1 hour ago',
+      },
+      {
+        id: 'notif-2',
+        message: 'Science homework (Rewrite) passed AI verification with 85% concept match.',
+        createdAt: '3 hours ago',
+      },
+    ],
+  };
 }

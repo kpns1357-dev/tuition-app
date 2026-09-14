@@ -6,7 +6,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, user, role } = useAuth();
+  const { login, demoLogin, user, role } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,6 +92,43 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+
+          <div className="mt-6 border-t border-slate-200 pt-6">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-3">
+              First Look &amp; Quick Preview
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  demoLogin('admin');
+                  navigate('/admin');
+                }}
+                className="w-full py-2 px-3 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg text-center transition-colors"
+              >
+                👨‍🏫 Explore as Sir (Admin Dashboard)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  demoLogin('student');
+                  navigate('/student');
+                }}
+                className="w-full py-2 px-3 border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold rounded-lg text-center transition-colors"
+              >
+                🎓 Explore as Student (Homework Portal)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigate('/parent/demo-parent-token-6th');
+                }}
+                className="w-full py-2 px-3 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg text-center transition-colors"
+              >
+                👨‍👩‍👧 Open Live Parent Status Link
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -6,35 +6,59 @@ import { getUserRole, getUserProfile, loginUser, logoutUser } from '../lib/auth'
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('tuition_demo_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [role, setRole] = useState(() => {
+    return localStorage.getItem('tuition_demo_role') || null;
+  });
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('tuition_demo_profile');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userRole = await getUserRole(firebaseUser);
-          const userProfile = await getUserProfile(firebaseUser.uid);
-          setUser(firebaseUser);
-          setRole(userRole);
-          setProfile(userProfile);
-        } catch (err) {
-          console.error('Error fetching user data:', err);
-          setUser(null);
-          setRole(null);
-          setProfile(null);
-        }
-      } else {
-        setUser(null);
-        setRole(null);
-        setProfile(null);
-      }
+    // Safety timeout: Ensure page never gets stuck on white loading screen
+    const safetyTimer = setTimeout(() => {
       setLoading(false);
-    });
+    }, 600);
 
-    return () => unsubscribe();
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        clearTimeout(safetyTimer);
+        if (firebaseUser) {
+          try {
+            const userRole = await getUserRole(firebaseUser);
+            const userProfile = await getUserProfile(firebaseUser.uid);
+            setUser(firebaseUser);
+            setRole(userRole);
+            setProfile(userProfile);
+          } catch (err) {
+            console.error('Error fetching user data:', err);
+          }
+        } else {
+          // If no Firebase user and no active demo session
+          const hasDemo = localStorage.getItem('tuition_demo_user');
+          if (!hasDemo) {
+            setUser(null);
+            setRole(null);
+            setProfile(null);
+          }
+        }
+        setLoading(false);
+      });
+    } catch (e) {
+      console.warn('Auth listener init notice:', e);
+      setLoading(false);
+    }
+
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -46,8 +70,37 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  const demoLogin = (roleType) => {
+    if (roleType === 'admin') {
+      const demoAdmin = { uid: 'demo-admin-sir', email: 'sir@tuition.edu' };
+      const demoProfile = { displayName: 'Sir (Tuition Admin)', email: 'sir@tuition.edu', role: 'admin' };
+      localStorage.setItem('tuition_demo_user', JSON.stringify(demoAdmin));
+      localStorage.setItem('tuition_demo_role', 'admin');
+      localStorage.setItem('tuition_demo_profile', JSON.stringify(demoProfile));
+      setUser(demoAdmin);
+      setRole('admin');
+      setProfile(demoProfile);
+    } else {
+      const demoStudent = { uid: 'demo-student-rahul', email: 'rahul@student.edu' };
+      const demoProfile = { displayName: 'Rahul Sharma', class: '6th', role: 'student', parentPhone: '+91 98765 43210', parentToken: 'demo-parent-token-6th' };
+      localStorage.setItem('tuition_demo_user', JSON.stringify(demoStudent));
+      localStorage.setItem('tuition_demo_role', 'student');
+      localStorage.setItem('tuition_demo_profile', JSON.stringify(demoProfile));
+      setUser(demoStudent);
+      setRole('student');
+      setProfile(demoProfile);
+    }
+  };
+
   const logout = async () => {
-    await logoutUser();
+    localStorage.removeItem('tuition_demo_user');
+    localStorage.removeItem('tuition_demo_role');
+    localStorage.removeItem('tuition_demo_profile');
+    try {
+      await logoutUser();
+    } catch (e) {
+      // ignore
+    }
     setUser(null);
     setRole(null);
     setProfile(null);
@@ -59,6 +112,7 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     login,
+    demoLogin,
     logout,
   };
 
