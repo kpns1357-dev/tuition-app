@@ -12,6 +12,7 @@ import StudentHomePage from './pages/student/StudentHomePage';
 import UploadHomework from './pages/student/UploadHomework';
 import MyStatus from './pages/student/MyStatus';
 import ParentView from './pages/ParentView';
+import PrototypeBanner from './components/PrototypeBanner';
 
 export default function App() {
   const { loading } = useAuth();
@@ -25,7 +26,9 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <PrototypeBanner />
+      <Routes>
       {/* Public routes */}
       <Route path="/" element={<LoginPage />} />
       <Route path="/parent/:token" element={<ParentView />} />
@@ -101,5 +104,6 @@ export default function App() {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

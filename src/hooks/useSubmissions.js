@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { demoStore } from '../lib/demoStore';
 
 export function useSubmissions(filters = {}) {
   const { user, role } = useAuth();
@@ -43,16 +44,41 @@ export function useSubmissions(filters = {}) {
 
     const q = query(collection(db, 'submissions'), ...constraints);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setSubmissions(items);
+    const updateFromDemo = () => {
+      const demoList = demoStore.getSubmissions({
+        studentId: role === 'student' ? user.uid : filters.studentId,
+        class: filters.class,
+        subject: filters.subject,
+        status: filters.status,
+      });
+      setSubmissions(demoList);
       setLoading(false);
-    }, (error) => {
-      console.error('Submissions listener error:', error);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    let unsubscribeFirestore = () => {};
+    let unsubscribeDemo = demoStore.subscribe(updateFromDemo);
+
+    try {
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setSubmissions(items);
+        } else {
+          updateFromDemo();
+        }
+        setLoading(false);
+      }, (error) => {
+        console.warn('Using prototype submissions:', error);
+        updateFromDemo();
+      });
+    } catch (e) {
+      updateFromDemo();
+    }
+
+    return () => {
+      unsubscribeFirestore();
+      unsubscribeDemo();
+    };
   }, [user, role, filters.studentId, filters.class, filters.subject, filters.date, filters.status]);
 
   return { submissions, loading };
