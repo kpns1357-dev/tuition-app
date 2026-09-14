@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { getParentStatus } from '../lib/api';
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { demoStore } from '../lib/demoStore';
 
 export default function ParentView() {
   const { token } = useParams();
@@ -14,17 +15,8 @@ export default function ParentView() {
     async function fetchStatus() {
       try {
         setLoading(true);
-        if (token.startsWith('demo-')) {
-          setData(getSampleParentData());
-        } else {
-          try {
-            const result = await getParentStatus(token);
-            setData(result);
-          } catch (err) {
-            console.warn('Using local preview data for parent view:', err);
-            setData(getSampleParentData());
-          }
-        }
+        const report = demoStore.getParentReport(token);
+        setData(report);
       } catch (err) {
         console.error(err);
         setError('Invalid link. Please contact your child\'s tuition teacher.');

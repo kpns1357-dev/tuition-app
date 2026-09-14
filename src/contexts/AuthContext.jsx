@@ -17,13 +17,20 @@ export function AuthProvider({ children }) {
     const saved = localStorage.getItem('tuition_demo_profile');
     return saved ? JSON.parse(saved) : null;
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    return !localStorage.getItem('tuition_demo_user');
+  });
 
   useEffect(() => {
-    // Safety timeout: Ensure page never gets stuck on white loading screen
+    // If demo session is active, no need to wait for Firebase
+    if (localStorage.getItem('tuition_demo_user')) {
+      setLoading(false);
+      return;
+    }
+
     const safetyTimer = setTimeout(() => {
       setLoading(false);
-    }, 600);
+    }, 150);
 
     let unsubscribe = () => {};
     try {

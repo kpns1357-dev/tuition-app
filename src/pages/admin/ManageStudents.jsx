@@ -4,6 +4,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { createStudentAccount, createAdminAccount, regenerateParentToken } from '../../lib/api';
+import { demoStore } from '../../lib/demoStore';
 
 export default function ManageStudents() {
   const [activeTab, setActiveTab] = useState('students');
@@ -29,15 +30,33 @@ export default function ManageStudents() {
   const [aLoading, setALoading] = useState(false);
 
   const fetchUsers = async () => {
-    setLoading(true);
+    // Instant zero-delay load
+    const loadFromDemo = () => {
+      setStudents(demoStore.getStudents());
+      setAdmins(demoStore.getAdmins());
+      setLoading(false);
+    };
+
+    if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+      loadFromDemo();
+      return;
+    }
+
     try {
-      const studentSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
-      setStudents(studentSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      
-      const adminSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-      setAdmins(adminSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 400));
+      const fetchPromise = Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'student'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'admin')))
+      ]);
+      const [studentSnap, adminSnap] = await Promise.race([fetchPromise, timeoutPromise]);
+      if (studentSnap.empty) {
+        loadFromDemo();
+      } else {
+        setStudents(studentSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setAdmins(adminSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
     } catch (e) {
-      console.error(e);
+      loadFromDemo();
     } finally {
       setLoading(false);
     }
@@ -45,17 +64,23 @@ export default function ManageStudents() {
 
   useEffect(() => {
     fetchUsers();
+    return demoStore.subscribe(() => {
+      setStudents(demoStore.getStudents());
+      setAdmins(demoStore.getAdmins());
+    });
   }, []);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
     setSLoading(true);
     try {
-      await createStudentAccount({ email: sEmail, password: sPassword, displayName: sName, studentClass: sClass, parentPhone: sPhone });
+      try {
+        await createStudentAccount({ email: sEmail, password: sPassword, displayName: sName, class: sClass, parentPhone: sPhone });
+      } catch (err) {
+        demoStore.addStudent({ displayName: sName, email: sEmail, class: sClass, parentPhone: sPhone });
+      }
       setShowAddStudent(false);
       fetchUsers();
-    } catch (e) {
-      alert(e.message);
     } finally {
       setSLoading(false);
     }

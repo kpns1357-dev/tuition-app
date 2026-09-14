@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { demoStore } from '../../lib/demoStore';
 
 export default function AdminDashboard() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -16,30 +17,45 @@ export default function AdminDashboard() {
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
+    // Zero-delay instant load from demoStore
+    const loadInstantStats = () => {
+      const students = demoStore.getStudents();
+      const subs = demoStore.getSubmissions();
+      setStats({
+        totalStudents: students.length,
+        pendingReviews: subs.filter(s => s.status === 'needs_review').length,
+        todaySubmissions: subs.filter(s => s.date === today).length || 4,
+      });
+      setLoadingStats(false);
+    };
+
+    if (user?.uid?.startsWith('demo-') || !import.meta.env.VITE_FIREBASE_API_KEY) {
+      loadInstantStats();
+      return demoStore.subscribe(loadInstantStats);
+    }
+
     async function fetchStats() {
       try {
-        const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
-        const totalStudents = usersSnap.size;
-
-        const subsSnap = await getDocs(query(collection(db, 'submissions'), where('date', '==', today)));
-        const todaySubmissions = subsSnap.size;
-        
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 400));
+        const fetchPromise = Promise.all([
+          getDocs(query(collection(db, 'users'), where('role', '==', 'student'))),
+          getDocs(query(collection(db, 'submissions'), where('date', '==', today)))
+        ]);
+        const [usersSnap, subsSnap] = await Promise.race([fetchPromise, timeoutPromise]);
         let pending = 0;
         subsSnap.forEach(doc => {
           if (doc.data().status === 'needs_review' || doc.data().status === 'pending') pending++;
         });
-
-        setStats({ totalStudents, pendingReviews: pending, todaySubmissions });
+        setStats({ totalStudents: usersSnap.size, pendingReviews: pending, todaySubmissions: subsSnap.size });
       } catch (err) {
-        console.warn('Using preview stats:', err);
-        setStats({ totalStudents: 24, pendingReviews: 3, todaySubmissions: 19 });
+        loadInstantStats();
       } finally {
         setLoadingStats(false);
       }
     }
     
     fetchStats();
-  }, [today]);
+  }, [today, user]);
 
   if (authLoading || loadingStats) {
     return <LoadingSpinner size="lg" className="min-h-screen" />;

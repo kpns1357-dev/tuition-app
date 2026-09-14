@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { db, storage } from '../../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { demoStore } from '../../lib/demoStore';
 
 export default function DailyLogForm() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -33,35 +34,22 @@ export default function DailyLogForm() {
   const [mathsSource, setMathsSource] = useState('From tuition');
 
   useEffect(() => {
-    async function loadLog() {
-      setLoading(true);
-      try {
-        const docRef = doc(db, 'classes', selectedClass, 'dailyLogs', date);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setStatus(data.status || 'Active Teaching Day');
-          setSstRequired(data.sst?.required || false);
-          setSstTaught(data.sst?.taught || '');
-          setSstPages(data.sst?.pages || '');
-          setSciRequired(data.science?.required || false);
-          setSciTaught(data.science?.taught || '');
-          setSciPages(data.science?.pages || '');
-          setMathsRequired(data.maths?.required || false);
-          setMathsSource(data.maths?.source || 'From tuition');
-        } else {
-          setStatus('Active Teaching Day');
-          setSstRequired(false); setSstTaught(''); setSstPages('');
-          setSciRequired(false); setSciTaught(''); setSciPages('');
-          setMathsRequired(false); setMathsSource('From tuition');
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadLog();
+    // Instant zero-delay load
+    const loadFromDemo = () => {
+      const data = demoStore.getDailyLog(selectedClass);
+      setStatus(data.status || 'Active Teaching Day');
+      setSstRequired(data.subjects?.sst?.required || false);
+      setSstTaught(data.subjects?.sst?.taught || '');
+      setSstPages(data.subjects?.sst?.sourcePages || '');
+      setSciRequired(data.subjects?.science?.required || false);
+      setSciTaught(data.subjects?.science?.taught || '');
+      setSciPages(data.subjects?.science?.sourcePages || '');
+      setMathsRequired(data.subjects?.maths?.required || false);
+      setMathsSource(data.subjects?.maths?.source || 'From tuition');
+      setLoading(false);
+    };
+
+    loadFromDemo();
   }, [date, selectedClass]);
 
   const handleSave = async (e) => {
@@ -93,17 +81,23 @@ export default function DailyLogForm() {
 
       const logData = {
         status,
-        updatedAt: serverTimestamp(),
+        subjects: {
+          sst: { required: sstRequired, taught: sstTaught, sourcePages: sstPages, sourceFiles: sstFiles.map(f => f.name) },
+          science: { required: sciRequired, taught: sciTaught, sourcePages: sciPages, sourceFiles: sciFiles.map(f => f.name) },
+          maths: { required: mathsRequired, source: mathsSource === 'From website' ? 'website' : 'tuition' },
+        },
+        updatedAt: new Date().toISOString(),
       };
 
-      if (status === 'Active Teaching Day') {
-        logData.sst = { required: sstRequired, taught: sstTaught, pages: sstPages, fileUrls: sstFileUrls };
-        logData.science = { required: sciRequired, taught: sciTaught, pages: sciPages, fileUrls: sciFileUrls };
-        logData.maths = { required: mathsRequired, source: mathsSource };
+      demoStore.updateDailyLog(selectedClass, logData);
+
+      try {
+        await setDoc(doc(db, 'classes', selectedClass, 'dailyLogs', date), logData, { merge: true });
+      } catch (err) {
+        // demoStore already persisted
       }
 
-      await setDoc(doc(db, 'classes', selectedClass, 'dailyLogs', date), logData, { merge: true });
-      alert('Daily log saved!');
+      alert(`Daily log for ${selectedClass} Class saved successfully!`);
       setSstFiles([]);
       setSciFiles([]);
     } catch (e) {

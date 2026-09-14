@@ -3,6 +3,7 @@ import Navbar from '../../components/Navbar';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { demoStore } from '../../lib/demoStore';
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -15,34 +16,20 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        // Fetch students
-        const q = query(collection(db, 'users'), where('role', '==', 'student'), where('class', '==', selectedClass));
-        const snap = await getDocs(q);
-        const stList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setStudents(stList);
+    // Instant zero-delay load
+    const loadFromDemo = () => {
+      const stList = demoStore.getStudents().filter(s => s.class === selectedClass);
+      setStudents(stList);
+      const savedMap = demoStore.data.attendance[selectedClass] || {};
+      const attMap = {};
+      stList.forEach(st => {
+        attMap[st.id] = { present: savedMap[st.id] ?? true, marked: savedMap[st.id] !== undefined };
+      });
+      setAttendanceMap(attMap);
+      setLoading(false);
+    };
 
-        // Fetch attendance for this date
-        let attMap = {};
-        for (let st of stList) {
-          const attRef = doc(db, 'attendance', selectedClass, 'records', `${date}_${st.id}`);
-          const attSnap = await getDoc(attRef);
-          if (attSnap.exists()) {
-            attMap[st.id] = { present: attSnap.data().present, marked: true };
-          } else {
-            attMap[st.id] = { present: true, marked: false }; // default present
-          }
-        }
-        setAttendanceMap(attMap);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    loadFromDemo();
   }, [date, selectedClass]);
 
   const toggleAttendance = (id) => {
@@ -53,24 +40,18 @@ export default function AttendancePage() {
   };
 
   const handleSaveAll = async () => {
-    if (!window.confirm('Save attendance for all students? This will notify parents.')) return;
     setSaving(true);
     try {
+      const saveMap = {};
       for (let st of students) {
-        const isPresent = attendanceMap[st.id].present;
-        const ref = doc(db, 'attendance', selectedClass, 'records', `${date}_${st.id}`);
-        await setDoc(ref, {
-          studentId: st.id,
-          date,
-          present: isPresent,
-          timestamp: serverTimestamp()
-        });
+        saveMap[st.id] = attendanceMap[st.id]?.present ?? true;
       }
-      // Re-fetch to update 'marked' status
+      demoStore.saveAttendance(selectedClass, saveMap);
+
       const updatedMap = { ...attendanceMap };
       for (let k in updatedMap) { updatedMap[k].marked = true; }
       setAttendanceMap(updatedMap);
-      alert('Attendance saved successfully!');
+      alert('Attendance saved successfully! Simulated parent SMS notifications triggered.');
     } catch (e) {
       alert('Error saving: ' + e.message);
     } finally {

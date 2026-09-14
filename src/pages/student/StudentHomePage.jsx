@@ -5,6 +5,7 @@ import SubjectCard from '../../components/SubjectCard';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { demoStore } from '../../lib/demoStore';
 
 export default function StudentHomePage() {
   const { user, profile } = useAuth();
@@ -16,45 +17,32 @@ export default function StudentHomePage() {
   const displayDate = format(new Date(), 'EEEE, MMMM do, yyyy');
 
   useEffect(() => {
-    async function fetchData() {
-      if (!user || !profile?.class) return;
-      setLoading(true);
-
-      try {
-        const logRef = doc(db, 'classes', profile.class, 'dailyLogs', todayStr);
-        const logSnap = await getDoc(logRef);
-        let logData = null;
-        if (logSnap.exists()) {
-          logData = logSnap.data();
-          setDailyLog(logData);
-        } else {
-          setDailyLog({ status: 'no_homework' });
-        }
-
-        const subsRef = collection(db, 'submissions');
-        const q = query(
-          subsRef,
-          where('studentId', '==', user.uid),
-          where('date', '==', todayStr)
-        );
-        const subsSnap = await getDocs(q);
-        
-        const subsMap = {};
-        subsSnap.forEach(doc => {
-          const data = doc.data();
-          if (!subsMap[data.subject]) {
-            subsMap[data.subject] = [];
-          }
-          subsMap[data.subject].push(data);
-        });
-        setSubmissions(subsMap);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (!user) {
+      setLoading(false);
+      return;
     }
-    fetchData();
+    const studentClass = profile?.class || '6th';
+    const logData = demoStore.getDailyLog(studentClass);
+    setDailyLog(logData);
+
+    const subs = demoStore.getSubmissions({ studentId: user.uid });
+    const subsMap = {};
+    subs.forEach(s => {
+      if (!subsMap[s.subject]) subsMap[s.subject] = [];
+      subsMap[s.subject].push(s);
+    });
+    setSubmissions(subsMap);
+    setLoading(false);
+
+    return demoStore.subscribe(() => {
+      const updatedSubs = demoStore.getSubmissions({ studentId: user.uid });
+      const updatedMap = {};
+      updatedSubs.forEach(s => {
+        if (!updatedMap[s.subject]) updatedMap[s.subject] = [];
+        updatedMap[s.subject].push(s);
+      });
+      setSubmissions(updatedMap);
+    });
   }, [user, profile, todayStr]);
 
   if (loading) {
