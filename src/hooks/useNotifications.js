@@ -6,66 +6,62 @@ import { demoStore } from '../lib/demoStore';
 
 export function useNotifications() {
   const { user, role } = useAuth();
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(() => {
+    return demoStore.getNotifications(role === 'admin' ? 'admin' : user?.uid);
+  });
+  const [unreadCount, setUnreadCount] = useState(() => {
+    const list = demoStore.getNotifications(role === 'admin' ? 'admin' : user?.uid);
+    return list.filter((n) => !n.read).length;
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      setNotifications([]);
-      setUnreadCount(0);
-      setLoading(false);
-      return;
-    }
-
-    let q;
-    if (role === 'admin') {
-      // Admins see notifications targeted to "admin" or their specific uid
-      q = query(
-        collection(db, 'notifications'),
-        where('recipientId', 'in', ['admin', user.uid]),
-        orderBy('createdAt', 'desc')
-      );
-    } else {
-      // Students see their own notifications
-      q = query(
-        collection(db, 'notifications'),
-        where('recipientId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-    }
-
     const updateFromDemo = () => {
-      const demoList = demoStore.getNotifications(role === 'admin' ? 'admin' : user.uid);
+      const demoList = demoStore.getNotifications(role === 'admin' ? 'admin' : user?.uid);
       setNotifications(demoList);
       setUnreadCount(demoList.filter((n) => !n.read).length);
       setLoading(false);
     };
 
-    let unsubscribeFirestore = () => {};
-    let unsubscribeDemo = demoStore.subscribe(updateFromDemo);
+    updateFromDemo();
+    const unsubscribeDemo = demoStore.subscribe(updateFromDemo);
 
-    try {
-      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-          setNotifications(items);
-          setUnreadCount(items.filter((n) => !n.read).length);
+    let unsubscribeFirestore = () => {};
+
+    if (import.meta.env.VITE_FIREBASE_API_KEY && user && !user.uid?.startsWith('demo-')) {
+      try {
+        let q;
+        if (role === 'admin') {
+          q = query(
+            collection(db, 'notifications'),
+            where('recipientId', 'in', ['admin', user.uid]),
+            orderBy('createdAt', 'desc')
+          );
         } else {
-          updateFromDemo();
+          q = query(
+            collection(db, 'notifications'),
+            where('recipientId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+          );
         }
-        setLoading(false);
-      }, (error) => {
-        console.warn('Using prototype notifications:', error);
-        updateFromDemo();
-      });
-    } catch (e) {
-      updateFromDemo();
+
+        unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setNotifications(items);
+            setUnreadCount(items.filter((n) => !n.read).length);
+          }
+        }, (err) => {
+          console.warn('Firestore fallback to demo:', err);
+        });
+      } catch (e) {
+        // ignore
+      }
     }
 
     return () => {
-      unsubscribeFirestore();
       unsubscribeDemo();
+      unsubscribeFirestore();
     };
   }, [user, role]);
 
